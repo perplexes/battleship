@@ -219,7 +219,7 @@ class GameUI
     open: "."
   }
   def print_board(board, show_ship: true)
-    print " "
+    print "  "
     puts (1..board.size).to_a.join(" ")
 
     board.size.times.each do |row|
