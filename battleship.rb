@@ -106,8 +106,10 @@ class Board
     down = [fc[0], fc[1] + length]
 
     possibles = [left, right, up, down]
+    # p :possibles, possibles
 
     trim = possibles.reject { |lc| lc[0] < 1 || lc[1] < 1 || lc[0] > size || lc[1] > size }
+    # p :trim, trim
 
     collide = trim.reject do |lc|
       locs = self.class.fill(fc, lc).map{|a| self.class.to_alpha(*a)}
@@ -117,8 +119,10 @@ class Board
         end
       end
     end
+    # p :collide, collide
 
     alpha = collide.map { |row, col| self.class.to_alpha(row, col) }
+    # p :alpha, alpha
     alpha
   end
 
