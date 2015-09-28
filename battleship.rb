@@ -216,10 +216,10 @@ class GameUI
   }
   def print_board(board, show_ship: true)
     print " "
-    puts (1..board.size).join(" ")
+    puts (1..board.size).to_a.join(" ")
 
     board.size.times.each do |row|
-      print(AZ[row + 1])
+      print(Board::AZ[row + 1])
       print " "
 
       board.size.times.each do |col|
