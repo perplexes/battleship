@@ -1,2 +1,2 @@
 #!/bin/bash
-bundle exec ruby battleship.rb | less
+bundle exec ruby battleship.rb $1
