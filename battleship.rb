@@ -4,17 +4,16 @@ require "active_support/all"
 # TODO: Just create all the ships, then place them
 class Ship
   TYPES = [
-    ["Aircraft Carrier", 5],
-    ["Battleship", 4],
-    ["Submarine", 3],
-    ["Destroyer", 3],
-    ["Patrol boat", 2],
+    {name: "Aircraft Carrier", length: 5},
+    {name: "Battleship", length: 4},
+    {name: "Submarine", length: 3},
+    {name: "Destroyer", length: 3},
+    {name: "Patrol Boat", length: 2},
   ]
-  attr_reader :name_loc, :name, :length
+  attr_reader :name, :length
 
   # length
-  def initialize(name_loc, name, length, locations)
-    @name_loc = name_loc
+  def initialize(name:, length:, locations:)
     @name = name
     @length = length
     @locations = locations
@@ -56,6 +55,11 @@ class Board
 
   def add_ship(ship)
     @ships << ship
+  end
+
+  def place_ship(attrs, locations)
+    ship = Ship.new(**attrs, locations: locations)
+    add_ship(ship)
   end
 
   def attacked?(location)
@@ -168,7 +172,7 @@ class Board
 end
 
 class Game
-  attr_reader :boards
+  attr_reader :boards, :current_player
 
   def initialize
     @boards = [
@@ -176,18 +180,23 @@ class Game
       Board.new("AI")
     ]
 
-    @current_player = 0
+    @current_player = 1
   end
 
   def playing?
     @boards.all?(&:alive?)
+  end
+
+  def next_player!
+    @current_player += 1
+    @current_player %= @boards.count
   end
 end
 
 class GameUI
   attr_reader :stdin, :human_board, :ai_board
 
-  def initialize(stdin)
+  def initialize(stdin=STDIN)
     $game = @game = Game.new
 
     @human_board = @game.boards[0]
@@ -202,8 +211,15 @@ class GameUI
     place_ai_ships
 
     while @game.playing?
-      print_board(ai_board, show_ship: false)
-      ask_for_move
+      @game.next_player!
+
+      if @game.current_player == 0
+        print_board(ai_board, show_ship: false)
+        print_board(human_board, show_ship: true)
+        human_move
+      else
+        ai_move
+      end
     end
 
     print_end
@@ -244,14 +260,17 @@ class GameUI
 
   def place_human_ships
     puts "Please place your ships"
-    Ship::TYPES.each.with_index do |(name, length), index|
-      get_ship(index, name, length)
+    Ship::TYPES.each do |attrs|
+      get_ship(attrs)
     end
   end
 
   def place_ai_ships
     puts "Placing AI ships"
-    Ship::TYPES.each.with_index do |(name, length), index|
+    Ship::TYPES.each do |attrs|
+      name = attrs[:name]
+      length = attrs[:length]
+
       print_board(ai_board)
 
       p :place_ai_ships, name
@@ -281,17 +300,16 @@ class GameUI
       locations = Board.fill_alpha(bow_a, stern_a)
       puts "#{name} locations #{locations}"
 
-      ship = Ship.new(index, name, length, locations)
-      ai_board.add_ship(ship)
+      ai_board.place_ship(attrs, locations)
     end
 
     print_board(ai_board)
   end
 
-  def get_ship(index, name, length)
+  def get_ship(attrs)
     print_board(human_board)
 
-    puts "Please place your #{name} (size #{length})"
+    puts "Please place your #{attrs[:name]} (size #{attrs[:length]})"
 
     begin
       input_okay = true
@@ -301,14 +319,22 @@ class GameUI
       puts "Enter bow of ship (forwardmost point):"
       first_loc = stdin.gets.chomp.upcase
 
-      if human_board.ships.any?{|s| s.in?(first_loc)}
+      if human_board.state(first_loc) != :open
         input_okay = false
         puts "There's a ship there, enter another location"
+        next
+      end
+
+      input_okay = true
+
+      possible_lasts = human_board.possible_lasts(first_loc, attrs[:length])
+      if possible_lasts.empty?
+        input_okay = false
+        puts "Ship can't be placed there, try another location"
+      else
+        puts "Possible stern positions: #{possible_lasts.join(', ')}"
       end
     end until input_okay
-
-    possible_lasts = human_board.possible_lasts(first_loc, length)
-    puts "Possible stern positions: #{possible_lasts.join(', ')}"
 
     begin
       input_okay = true
@@ -323,11 +349,10 @@ class GameUI
     end until input_okay
 
     locations = Board.fill_alpha(first_loc, last_loc)
-    ship = Ship.new(index, name, length, locations)
-    human_board.add_ship(ship)
+    human_board.place_ship(attrs, locations)
   end
 
-  def ask_for_move
+  def human_move
     puts "Call your shot:"
     location = stdin.gets.chomp.upcase
     ship = ai_board.attack(location)
@@ -341,8 +366,34 @@ class GameUI
     end
   end
 
+  def ai_move
+    puts "Computer is thinking..."
+
+    begin
+      shot = [rand(1..ai_board.size), rand(1..ai_board.size)]
+      shot_a = Board.to_alpha(*shot)
+      state = human_board.state(shot_a, show_ship: false)
+    end until state == :open
+
+    puts "Computer> #{shot_a}"
+    ship = human_board.attack(shot_a)
+
+    if ship
+      puts "Hit. #{ship.name}."
+      if ship.dead?
+        puts "They sunk your #{ship.name}."
+      end
+    else
+      puts "Miss."
+    end
+  end
+
   def print_end
-    puts "YOU WIN!"
+    if @game.current_player == 0
+      puts "YOU WON!"
+    else
+      puts "YOU LOST!"
+    end
   end
 end
 
@@ -396,4 +447,8 @@ class GameTester
   end
 end
 
-GameTester.test
+if ARGV[0] == "test"
+  GameTester.test
+else
+  GameUI.new.start
+end
